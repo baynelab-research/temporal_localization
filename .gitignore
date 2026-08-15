@@ -53,4 +53,9 @@ rsconnect/
 login.R
 
 # data
-data/
+*/data/*
+*.Rdata
+*.csv
+
+# hawkears project
+call_rate/hawkears.*
