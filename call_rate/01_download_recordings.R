@@ -17,6 +17,9 @@ library(wildrtrax) # download wildtrax data
 source("call_rate/login.R")
 wt_auth()
 
+## 1.3 Set root path ----
+root <- "G:/Shared drives/ABMI_Acoustics/Classifiers/HawkEars - Temporal Localization/call_rate"
+
 # 2. Download WT reports ----
 
 ## 2.1 Get reports ----
@@ -26,7 +29,7 @@ reports <- wt_download_report(sensor_id = "ARU", project_id = 2780,
 ## 2.2 Save reports ----
 main <- reports$ABMI_SingleSpecies_OVEN_SoundRates_SeasonalSeries_AnyYears_Bayne_main_report.csv
 rec <- reports$ABMI_SingleSpecies_OVEN_SoundRates_SeasonalSeries_AnyYears_Bayne_recording_report.csv
-save(main, rec, file="call_rate/data/WTReports.Rdata")
+save(main, rec, file=file.path(root, "data/WTReports.Rdata"))
 
 # 3. Download recordings  ----
 
@@ -36,10 +39,10 @@ dl <- rec |>
                dplyr::filter(species_code=="OVEN") |> 
                dplyr::select(recording_id) |> 
                unique()) |> 
-  mutate(file = file.path("call_rate", "data", "recordings",
+  mutate(file = file.path(root, "data", "recordings",
                           source_file_name))
 
-write.csv(dl, "call_rate/data/RecordingList.csv")
+write.csv(dl, file.path(root, "data/RecordingList.csv"))
 
 ## 3.2 Download ----
 for(i in 1:nrow(dl)){
