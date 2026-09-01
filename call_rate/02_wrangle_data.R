@@ -20,54 +20,14 @@ load(file.path(root, "data/WTReports.Rdata"))
 
 # 2. Wrangle HE output ----
 
-## 2.1 Get file lists ----
-files.fixed <- list.files(
-  file.path(root, "data", "hawkears_output", "test", "fixed"),
-  full.names = TRUE,
-  pattern = "*.txt"
-)
-files.variable <- list.files(
-  file.path(root, "data", "hawkears_output", "test", "variable"),
-  full.names = TRUE,
-  pattern = "*.txt"
-)
+## 2.1 Get files ----
 
-## 2.2 Read in files ----
-he.fixed <- do.call(
-  rbind,
-  lapply(files.fixed, function(file) {
-    dat <- read.table(
-      file,
-      header = FALSE,
-      sep = "\t",
-      stringsAsFactors = FALSE
-    )
+he.variable <- read.csv(file.path(root, "data", "hawkears_output", "test", "temporallocalization_oven_variable_test.csv")) |> 
+  rename(sp = name, file = recording,
+         start = start_time, end = end_time)
 
-    dat$file <- tools::file_path_sans_ext(basename(file))
-    dat
-  })
-) |>
-  tidyr::separate(V3, into = c("sp", "score"), sep = ";")
-
-colnames(he.fixed) <- c("start", "end", "sp", "score", "file")
-
-he.variable <- do.call(
-  rbind,
-  lapply(files.variable, function(file) {
-    dat <- read.table(
-      file,
-      header = FALSE,
-      sep = "\t",
-      stringsAsFactors = FALSE
-    )
-
-    dat$file <- tools::file_path_sans_ext(basename(file))
-    dat
-  })
-) |>
-  tidyr::separate(V3, into = c("sp", "score"), sep = ";")
-
-colnames(he.variable) <- c("start", "end", "sp", "score", "file")
+he.fixed <- read.csv(file.path(root, "data", "hawkears_output", "test", "temporallocalization_oven_fixed_test.csv")) |> 
+  rename(sp = name, file = recording, start = start_time, end =end_time)
 
 # 3. Put them together ----
 
@@ -115,8 +75,10 @@ fixed <- he.fixed |>
     )
   )
 
+#let's put a minimum duration on as well
 variable <- he.variable |>
-  dplyr::filter(start < 180) |>
+  dplyr::filter(start < 180,
+                end - start >= 1) |>
   mutate(
     classifier_id = row_number(),
     file = str_remove_all(file, "_scores")
@@ -145,7 +107,9 @@ out <- rbind(
     mutate(type = "fixed"),
   variable |>
     mutate(type = "variable")
-)
+) |> 
+  mutate(duration.classifier = end.classifier - start.classifier,
+         duration.manual = end.manual - start.manual)
 
 ## 3.3 Save output ----
 write.csv(
