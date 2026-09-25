@@ -17,7 +17,11 @@ library(gridExtra)
 root <- "G:/Shared drives/ABMI_Acoustics/Classifiers/HawkEars - Temporal Localization/call_rate"
 
 ## 1.3 Load annotations ----
-dat <- read.csv(file.path(root, "data", "WrangledDetections.csv"))
+raw <- read.csv(file.path(root, "data", "WrangledDetections.csv"))
+
+## 1.4 Get just the default 3s fixed detections ----
+dat <- raw |> 
+  dplyr::filter(length %in% c(NA, 3))
 
 # 2. Data presents ----
 
@@ -182,3 +186,77 @@ ggplot(out.cor |>
   facet_grid(metric ~ verification, scales="free")
 
 ggsave(file = file.path(root, "figures", "Correlations.jpeg"), width = 10, height = 8)
+
+#4. Varying window lengths ----
+
+## 4.2 Summarize ----
+todo <- expand.grid(thresh = seq(0.1, 0.99, 0.01),
+                    length = unique(raw$length)) |> 
+  dplyr::filter(!is.na(length))
+
+out.list2 <- list()
+for(i in 1:nrow(todo)){
+  
+  dat.i <- dplyr::filter(raw, score > todo$thresh[i],
+                         length %in% c(NA, todo$length[i]))
+  
+  unverif.i <- dat.i |>
+    group_by(file, type) |>
+    summarize(calls_unverified = n(),
+              duration_unverified = sum(duration.classifier)) |>
+    ungroup()
+  
+  verif.i <- dat.i |>
+    dplyr::filter(outcome == "true positive") |>
+    group_by(file, type) |>
+    summarize(calls_verified = n(),
+              duration_verified = sum(duration.classifier)) |>
+    ungroup()
+  
+  recs.i <- annotated |>
+    left_join(unverif.i, by = c("file", "type")) |>
+    left_join(verif.i, by = c("file", "type")) |>
+    mutate(
+      calls_unverified = ifelse(is.na(calls_unverified), 0, calls_unverified),
+      calls_verified = ifelse(is.na(calls_verified), 0, calls_verified),
+      duration_unverified = ifelse(is.na(duration_unverified), 0, duration_unverified),
+      duration_verified = ifelse(is.na(duration_verified), 0, duration_verified)
+    ) |>
+    dplyr::select(file, type, calls_annotated, calls_unverified, calls_verified, duration_annotated, duration_unverified, duration_verified) |> 
+    mutate(thresh = todo$thresh[i],
+           length = todo$length[i])
+  
+  out.list2[[i]] <- recs.i
+  
+  cat(i, " ")
+  
+}
+
+out2 <- do.call(rbind, out.list2) |> 
+  mutate(length = ifelse(type=="variable", NA, length))
+
+## 4.2 Get the correlations ----
+out.cor2 <- out2 |> 
+  group_by(type, thresh, length) |> 
+  summarize(cor_calls_verified = cor(calls_annotated, calls_verified, method="pearson"),
+            cor_calls_unverified = cor(calls_annotated, calls_unverified, method="pearson"),
+            cor_duration_verified = cor(duration_annotated, duration_verified, method="pearson"),
+            cor_duration_unverified = cor(duration_annotated, duration_unverified, method="pearson")) |> 
+  ungroup() |> 
+  pivot_longer(cor_calls_verified:cor_duration_unverified, names_to="metric", values_to="correlation") |> 
+  mutate(metric = str_remove(metric, "cor_")) |> 
+  separate(metric, into=c("metric", "verification")) |> 
+  mutate(category = paste0(type, " - ", length)) |> 
+  dplyr::filter(category!="fixed - NA")
+
+## 4.3 Plot ----
+ggplot(out.cor2 |> 
+         dplyr::filter(thresh > 0.2), aes(x=thresh, y=correlation)) +
+  geom_line(aes(colour=category)) +
+  geom_line(data= out.cor2 |> 
+              dplyr::filter(type=="variable", thresh > 0.2),
+            aes(x=thresh, y=correlation),
+            colour="black", linewidth = 1) +
+  facet_grid(metric ~ verification, scales="free")
+
+ggsave(file = file.path(root, "figures", "Correlations_WindowLength.jpeg"), width = 10, height = 8)

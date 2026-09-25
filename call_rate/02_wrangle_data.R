@@ -23,11 +23,21 @@ load(file.path(root, "data/WTReports.Rdata"))
 ## 2.1 Get files ----
 
 he.variable <- read.csv(file.path(root, "data", "hawkears_output", "test", "temporallocalization_oven_variable_test.csv")) |> 
-  rename(sp = name, file = recording,
-         start = start_time, end = end_time)
+  rename(sp = name, file = recording, start = start_time, end =end_time) |> 
+  mutate(length = NA)
 
-he.fixed <- read.csv(file.path(root, "data", "hawkears_output", "test", "temporallocalization_oven_fixed_test.csv")) |> 
-  rename(sp = name, file = recording, start = start_time, end =end_time)
+files.fixed <- data.frame(path = list.files(file.path(root, "data", "hawkears_output", "test" ), pattern="*fixed*", full.names = TRUE)) |> 
+  mutate(length = as.numeric(str_sub(path, -12, -10)))
+
+he.fixed <- data.frame()
+for(i in 1:nrow(files.variable)){
+  he.fixed <- read.csv(files.fixed$path[i]) |> 
+    rename(sp = name, file = recording,
+           start = start_time, end = end_time) |> 
+    mutate(length = files.fixed$length[i]) |> 
+    rbind(he.fixed)
+  
+}
 
 # 3. Put them together ----
 
